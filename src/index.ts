@@ -1,4 +1,4 @@
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 /** `ada@example.com` or `Ada Obi <ada@example.com>`. */
 export type Address = string;
@@ -381,7 +381,7 @@ function parseRetryAfter(value: string | null, now = Date.now()): number | null 
 }
 
 export type WebhookEventType =
-  | 'message.sent' | 'message.delivered' | 'message.bounced' | 'message.complained' | 'message.failed' | 'message.opened' | 'message.clicked'
+  | 'message.sent' | 'message.delivered' | 'message.bounced' | 'message.deferred' | 'message.complained' | 'message.failed' | 'message.opened' | 'message.clicked'
   | 'contact.subscribed' | 'contact.unsubscribed';
 export interface MessageEventData {
   message_id: string;
@@ -393,6 +393,18 @@ export interface MessageEventData {
   provider_message_id?: string;
   recipients?: string[];
   occurred_at?: string;
+  /** message.bounced is always `hard`; message.deferred is `soft` for a soft bounce and null for a delivery delay. */
+  bounce_type?: 'hard' | 'soft' | null;
+  bounce_subtype?: string | null;
+  /** The receiving server's SMTP reply, when the provider reports one. */
+  diagnostic?: string | null;
+  /** message.deferred: `soft_bounce` or `delivery_delay`. message.failed: why it won't be sent. */
+  reason?: string;
+  soft_bounce_count?: number | null;
+  /** Whether this event added the address to your suppressions. */
+  suppressed?: boolean;
+  /** Set on events from test API keys. */
+  test?: boolean;
 }
 export interface ContactEventData { contact_id: string; email: string; list_id?: string; }
 export type WebhookEvent =

@@ -1,6 +1,6 @@
 {
   "name": "@getoutbox/sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Outbox transactional email SDK for Node.js and TypeScript",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,7 +31,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ProntoVille/outbox-sdk.git"
+    "url": "git+https://github.com/Outbox-Stack/outbox-node.git"
+  },
+  "homepage": "https://outboxstack.app/docs/#sdk",
+  "bugs": {
+    "url": "https://github.com/Outbox-Stack/outbox-node/issues"
   },
   "publishConfig": {
     "access": "public",
@@ -43,7 +47,7 @@
     "prepack": "npm run build"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

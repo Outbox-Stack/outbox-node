@@ -156,6 +156,7 @@ import { verifyWebhook, WebhookVerificationError } from '@getoutbox/sdk';
 app.post('/hooks/outbox', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     const event = await verifyWebhook(req.body, req.headers, process.env.OUTBOX_WEBHOOK_SECRET!);
+    // message.bounced is final (hard bounce). message.deferred is a soft bounce or delay: don't give up on the address.
     if (event.type === 'message.bounced') await markUndeliverable(event.data.to, event.data.metadata);
     res.sendStatus(200);
   } catch (e) {

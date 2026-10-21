@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+Requires the matching API release for `message.deferred` webhooks and the bounce fields.
+
+- `WebhookEventType` includes `message.deferred` (soft bounce or delivery delay, not final). `MessageEventData` gains the optional `bounce_type`, `bounce_subtype`, `diagnostic`, `reason`, `soft_bounce_count`, `suppressed` and `test` fields.
+
 ## 0.4.0
 
 Requires the matching API release for paging, `cancelMessage` and suppression paging.
