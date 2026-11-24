@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+Requires the matching API release for `message.suppressed` webhooks.
+
+- `WebhookEventType` includes `message.suppressed`: the message was held back and never sent. `MessageEventData` gains `description`; `reason` is a `SuppressionReason` or `known_dead_address`.
+- `SuppressionReason` includes `unverified` (Amazon's pre-send address check). `removeSuppression()` removes `manual` and `unverified` suppressions.
+- `listMessages()`, `listMessagesPage()` and `iterateMessages()` accept `stream` (`transactional` or `marketing`).
+- `MessageDetail` gains `events`, `problem` (a plain-language `DeliveryProblem`), `campaign_id` and `test`. New exported types `MessageStream`, `MessageEvent` and `DeliveryProblem`.
+
 ## 0.5.0
 
 Requires the matching API release for `message.deferred` webhooks and the bounce fields.

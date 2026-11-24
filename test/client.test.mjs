@@ -77,8 +77,8 @@ test('batch is retried only when every item has an idempotency key', async () =>
 test('listMessages builds the query and unwraps the list', async () => {
   let url;
   const mail = client(async (u) => { url = u; return json({ messages: [{ id: ID }] }); });
-  assert.deepEqual(await mail.listMessages({ status: 'bounced', limit: 10 }), [{ id: ID }]);
-  assert.equal(url, 'https://mail.example.com/v1/messages?status=bounced&limit=10');
+  assert.deepEqual(await mail.listMessages({ status: 'bounced', stream: 'marketing', limit: 10 }), [{ id: ID }]);
+  assert.equal(url, 'https://mail.example.com/v1/messages?status=bounced&stream=marketing&limit=10');
 });
 
 test('caller abort stops retries immediately', async () => {

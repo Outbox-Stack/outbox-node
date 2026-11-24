@@ -70,8 +70,9 @@ const batch = await outbox.sendBatch(users.map((u) => ({
 })));
 for (const r of batch.results) if ('error' in r) console.warn(r.index, r.error);
 
-const message = await outbox.getMessage(id);            // status, attempts, last_error, …
-const recent = await outbox.listMessages({ status: 'bounced', limit: 100 }); // newest 100
+const message = await outbox.getMessage(id);            // status, attempts, last_error, events, …
+if (message.problem) console.log(message.problem.title, message.problem.action); // why it didn't arrive
+const recent = await outbox.listMessages({ status: 'bounced', stream: 'marketing', limit: 100 }); // newest 100
 
 for await (const m of outbox.iterateMessages({ status: 'bounced', to: '@example.com' })) {
   console.log(m.id, m.to_email, m.created_at);           // every match, a page at a time
@@ -97,15 +98,15 @@ Only a **queued** message can be cancelled; once a worker has started sending it
 
 ## Suppressions
 
-Suppressed addresses are never sent to. Bounces, complaints and unsubscribes are added automatically; you can add your own.
+Suppressed addresses are never sent to. Bounces, complaints and unsubscribes are added automatically, and so are addresses that Amazon's pre-send check judged very unlikely to exist (reason `unverified`). You can add your own.
 
 ```ts
 await outbox.addSuppression('ada@example.com');        // reason 'manual'
 for await (const s of outbox.iterateSuppressions()) console.log(s.email, s.reason);
-await outbox.removeSuppression('ada@example.com');     // manual suppressions only
+await outbox.removeSuppression('ada@example.com');     // manual and unverified suppressions only
 ```
 
-Suppression calls need a **full-access** API key; sending keys get `forbidden`. Removing a bounce, complaint or unsubscribe returns `conflict`, because those protect your sender reputation and the recipient's choice. `removeSuppression` is not retried automatically: a retry after a lost response would report `not_found` for an address that was removed.
+Suppression calls need a **full-access** API key; sending keys get `forbidden`. Removing an `unverified` suppression also skips Amazon's check for that address from then on. Removing a bounce, complaint or unsubscribe returns `conflict`, because those protect your sender reputation and the recipient's choice. `removeSuppression` is not retried automatically: a retry after a lost response would report `not_found` for an address that was removed.
 
 ## Retries and idempotency
 
@@ -157,6 +158,7 @@ app.post('/hooks/outbox', express.raw({ type: 'application/json' }), async (req,
   try {
     const event = await verifyWebhook(req.body, req.headers, process.env.OUTBOX_WEBHOOK_SECRET!);
     // message.bounced is final (hard bounce). message.deferred is a soft bounce or delay: don't give up on the address.
+    // message.suppressed was never sent; data.reason and data.description say why.
     if (event.type === 'message.bounced') await markUndeliverable(event.data.to, event.data.metadata);
     res.sendStatus(200);
   } catch (e) {

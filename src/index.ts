@@ -1,4 +1,4 @@
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 
 /** `ada@example.com` or `Ada Obi <ada@example.com>`. */
 export type Address = string;
@@ -52,7 +52,27 @@ export interface SendResult {
 }
 export type BatchItemResult = { index: number; id: string; status: MessageStatus; duplicate: boolean; recipients?: RecipientResult[] } | { index: number; error: string; code: ErrorCode };
 export interface BatchResult { accepted: number; failed: number; results: BatchItemResult[]; }
-export interface MessageSummary { id: string; stream: 'transactional' | 'marketing'; to_email: string; subject: string; status: MessageStatus; created_at: string; }
+export type MessageStream = 'transactional' | 'marketing';
+export interface MessageSummary { id: string; stream: MessageStream; to_email: string; subject: string; status: MessageStatus; created_at: string; }
+/** A plain-language reading of why a message didn't reach the inbox. */
+export interface DeliveryProblem {
+  /** For example `address_not_found`, `domain_not_found`, `mailbox_full`, `unverified_address`, `previously_bounced`, `rejected_by_receiver`, `bounced`, `temporary_failure` or `delayed`. */
+  code: string;
+  title: string;
+  detail: string;
+  action: string;
+  /** The receiving server's SMTP reply, when there was one. */
+  diagnostic?: string;
+  /** True while the provider is still retrying. */
+  pending?: boolean;
+}
+export interface MessageEvent {
+  /** For example `sent`, `delivered`, `bounced`, `soft_bounced`, `delayed`, `skipped`, `complained`, `opened`, `clicked` or `cancelled`. */
+  type: string;
+  at: string;
+  subtype?: string;
+  diagnostic?: string;
+}
 export interface MessageDetail extends MessageSummary {
   from_email: string;
   from_name: string | null;
@@ -69,6 +89,14 @@ export interface MessageDetail extends MessageSummary {
   metadata: Record<string, string> | null;
   updated_at: string;
   sent_at: string | null;
+  /** The campaign that sent it, or null. Absent on test-key messages. */
+  campaign_id?: string | null;
+  /** Provider feedback, oldest first. */
+  events: MessageEvent[];
+  /** Why it didn't reach the inbox, when the latest feedback was a bounce, delay or skip. */
+  problem?: DeliveryProblem;
+  /** Set on messages sent with a test API key. */
+  test?: true;
 }
 /** @deprecated Use MessageDetail. */
 export type MessageResult = MessageDetail;
@@ -79,6 +107,7 @@ export interface MessagePage {
 }
 export interface ListMessagesOptions extends RequestOptions {
   status?: MessageStatus;
+  stream?: MessageStream;
   /** Only recipients whose address contains this text (case-insensitive). */
   to?: string;
   /** 1–200. Default 50. */
@@ -88,7 +117,8 @@ export interface ListMessagesOptions extends RequestOptions {
 }
 export interface CancelResult { id: string; status: 'cancelled'; }
 
-export type SuppressionReason = 'bounce' | 'complaint' | 'unsubscribe' | 'manual';
+/** `unverified`: Amazon's pre-send address check judged the inbox very unlikely to exist. */
+export type SuppressionReason = 'bounce' | 'complaint' | 'unsubscribe' | 'manual' | 'unverified';
 export interface Suppression { email: string; reason: SuppressionReason; created_at: string; }
 export interface SuppressionPage {
   suppressions: Suppression[];
@@ -249,8 +279,8 @@ export class Outbox {
   }
 
   /** One page, most recent first. Pass `next` back as `after` until it is null. */
-  listMessagesPage({ status, to, limit, after, signal }: ListMessagesOptions = {}): Promise<MessagePage> {
-    return this.#request<MessagePage>('GET', '/v1/messages' + query({ status, to, limit, after }), { retryable: true, signal });
+  listMessagesPage({ status, stream, to, limit, after, signal }: ListMessagesOptions = {}): Promise<MessagePage> {
+    return this.#request<MessagePage>('GET', '/v1/messages' + query({ status, stream, to, limit, after }), { retryable: true, signal });
   }
 
   /** Every matching message, most recent first, fetched a page at a time. */
@@ -297,7 +327,8 @@ export class Outbox {
   }
 
   /**
-   * Removes a `manual` suppression. Bounces, complaints and unsubscribes can't be removed (code `conflict`);
+   * Removes a `manual` or `unverified` suppression; removing an `unverified` one also skips Amazon's address
+   * check for that address from then on. Bounces, complaints and unsubscribes can't be removed (code `conflict`);
    * an address that isn't suppressed gives `not_found`. Not retried automatically, since a retry after a
    * lost response would report `not_found` for an address that was removed.
    */
@@ -381,13 +412,13 @@ function parseRetryAfter(value: string | null, now = Date.now()): number | null 
 }
 
 export type WebhookEventType =
-  | 'message.sent' | 'message.delivered' | 'message.bounced' | 'message.deferred' | 'message.complained' | 'message.failed' | 'message.opened' | 'message.clicked'
+  | 'message.sent' | 'message.delivered' | 'message.bounced' | 'message.deferred' | 'message.suppressed' | 'message.complained' | 'message.failed' | 'message.opened' | 'message.clicked'
   | 'contact.subscribed' | 'contact.unsubscribed';
 export interface MessageEventData {
   message_id: string;
   to: string;
   subject: string;
-  stream: 'transactional' | 'marketing';
+  stream: MessageStream;
   campaign_id: string | null;
   metadata: Record<string, string> | null;
   provider_message_id?: string;
@@ -398,8 +429,13 @@ export interface MessageEventData {
   bounce_subtype?: string | null;
   /** The receiving server's SMTP reply, when the provider reports one. */
   diagnostic?: string | null;
-  /** message.deferred: `soft_bounce` or `delivery_delay`. message.failed: why it won't be sent. */
+  /**
+   * message.deferred: `soft_bounce` or `delivery_delay`. message.suppressed: a SuppressionReason, or
+   * `known_dead_address` when mail to it bounced recently for another sender. message.failed: why it won't be sent.
+   */
   reason?: string;
+  /** message.suppressed: the reason in plain words. */
+  description?: string;
   soft_bounce_count?: number | null;
   /** Whether this event added the address to your suppressions. */
   suppressed?: boolean;

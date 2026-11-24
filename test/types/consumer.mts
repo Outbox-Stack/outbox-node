@@ -1,4 +1,4 @@
-import { Outbox, OutboxConnectionError, verifyWebhook, type BatchMessage, type Message, type MessageSummary, type Suppression, type WebhookEvent } from '@getoutbox/sdk';
+import { Outbox, OutboxConnectionError, verifyWebhook, type BatchMessage, type Message, type MessageDetail, type MessageSummary, type Suppression, type SuppressionReason, type WebhookEvent } from '@getoutbox/sdk';
 
 const outbox = new Outbox({ apiKey: 'key' });
 export const sent = outbox.send({ from: 'a@x.com', to: ['b@x.com'], cc: 'c@x.com', subject: 's', text: 't' });
@@ -26,6 +26,17 @@ export const templateAndHtml: Message = { ...base, template: 'welcome', html: '<
 export const templateAndSubject: Message = { ...base, template: 'welcome', subject: 's' };
 // @ts-expect-error data only applies to templates
 export const dataWithoutTemplate: Message = { ...base, subject: 's', text: 't', data: { a: 1 } };
+
+export const unverified: SuppressionReason = 'unverified';
+export function problemCode(m: MessageDetail): string | undefined {
+  const skipped = m.events.some((e) => e.type === 'skipped');
+  return skipped ? m.problem?.code : m.campaign_id ?? undefined;
+}
+export function suppressedReason(e: WebhookEvent): string | undefined {
+  return e.type === 'message.suppressed' ? `${e.data.reason}: ${e.data.description}` : undefined;
+}
+// @ts-expect-error stream is transactional or marketing
+export const badStream = outbox.listMessages({ stream: 'promo' });
 
 export async function walk(): Promise<[MessageSummary[], Suppression[], string | null]> {
   const all: MessageSummary[] = [];
